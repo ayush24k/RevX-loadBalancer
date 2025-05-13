@@ -1,5 +1,19 @@
 import fs from 'fs/promises'
+import { parse } from 'yaml'
+import { rootConfigSchema } from './config-schema';
 
-async function parseYAMLConfig(filePath:string) {
-    const configFileContent = await fs.readFile(filePath);
+export async function parseYAMLConfig(filePath: string) {
+    const configFileContent = await fs.readFile(filePath, 'utf-8');
+    const configParsed = parse(configFileContent);
+    return JSON.stringify(configParsed);
+}
+
+export async function validateConfig (config: string) {
+    try {
+        const validatedConfig = await rootConfigSchema.parseAsync(JSON.parse(config));
+    } catch (e) {
+        console.log (e);
+    }
+    
+    return validateConfig;
 }
