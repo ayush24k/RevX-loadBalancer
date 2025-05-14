@@ -19,7 +19,7 @@ const serverSchema = z.object({
     listen: z.number(),
     workers: z.number().optional(),
     upstreams: z.array(upstreamsSchema),
-    header: z.array(headerSchema).optional(),
+    headers: z.array(headerSchema).optional(),
     rules: z.array(ruleSchema),
 })
 

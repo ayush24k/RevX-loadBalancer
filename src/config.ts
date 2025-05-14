@@ -8,12 +8,7 @@ export async function parseYAMLConfig(filePath: string) {
     return JSON.stringify(configParsed);
 }
 
-export async function validateConfig (config: string) {
-    try {
-        const validatedConfig = await rootConfigSchema.parseAsync(JSON.parse(config));
-    } catch (e) {
-        console.log (e);
-    }
-    
-    return validateConfig;
+export async function validateConfig(config: string) {
+    const validatedConfig = await rootConfigSchema.parseAsync(JSON.parse(config));
+    return validatedConfig;
 }
