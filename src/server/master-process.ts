@@ -1,7 +1,8 @@
 import cluster, { Worker } from 'node:cluster';
 import { ConfigSchemaType, rootConfigSchema } from '../config/config-schema';
-import http from 'node:http'
-import { WorkerMessageSchema, WorkerMessageType } from './server-schema';
+import http, { request } from 'node:http'
+import { WorkerMessageReplySchema, WorkerMessageReplyType, WorkerMessageSchema, WorkerMessageType } from './server-schema';
+import { date } from 'zod';
 
 interface masterConfig {
     port: number;
@@ -12,7 +13,7 @@ interface masterConfig {
 export async function masterProcess(config: masterConfig) {
     const { workerCount, port } = config;
 
-    const WORKER_POOL:Worker[] = [];
+    const WORKER_POOL: Worker[] = [];
 
     if (cluster.isPrimary) {
         console.log("Mater process is up 🚀")
@@ -36,6 +37,20 @@ export async function masterProcess(config: masterConfig) {
             }
 
             worker.send(JSON.stringify(payload));
+
+            worker.on('message', async (workerReply) => {
+                const reply = await WorkerMessageReplySchema.parseAsync(JSON.parse(workerReply as string))
+
+                if (reply.errorCode) {
+                    res.writeHead(parseInt(reply.errorCode))
+                    res.end(reply.error);
+                    return
+                }
+
+                res.writeHead(200);
+                res.end(reply.data);
+                return;
+            })
         });
 
         server.listen(port, () => {
@@ -47,7 +62,44 @@ export async function masterProcess(config: masterConfig) {
 
         process.on('message', async (message) => {
             const messageValidated = await WorkerMessageSchema.parseAsync(JSON.parse(message as string))
-            console.log(messageValidated);
+
+            const reuqestURL = messageValidated.url;
+            const rule = config.server.rules.find(e => e.path === reuqestURL)
+
+            if (!rule) {
+                const reply: WorkerMessageReplyType = {
+                    errorCode: '404',
+                    error: "Rule not found"
+                };
+                if (process.send) return process.send(JSON.stringify(reply));
+            }
+
+            const upstreamID = rule?.upstreams[0];
+            const upstream = config.server.upstreams.find(e => e.id === upstreamID);
+
+
+            if (!upstream) {
+                const reply: WorkerMessageReplyType = {
+                    errorCode: '404',
+                    error: "Upstream not found"
+                };
+                if (process.send) return process.send(JSON.stringify(reply));
+            }
+
+            const request = http.request({ host: upstream?.url, path: reuqestURL, method: 'GET' }, (proxyRes) => {
+                let body ='';
+                proxyRes.on('data', (chunk) => {
+                    body = body + date;
+                })
+
+                proxyRes.on('end', () => {
+                    const reply: WorkerMessageReplyType = {
+                        data: body
+                    }
+                    if (process.send) return process.send(JSON.stringify(reply));
+                })
+            });
+            request.end();
         })
     }
 }
