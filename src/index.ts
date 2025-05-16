@@ -1,6 +1,6 @@
 import { program } from 'commander'
-import { parseYAMLConfig, validateConfig } from './config';
-import { masterProcess } from './master-process';
+import { parseYAMLConfig, validateConfig } from './config/config';
+import { masterProcess } from './server/master-process';
 import os from 'node:os'
 
 
