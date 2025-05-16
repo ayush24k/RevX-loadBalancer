@@ -1,7 +1,7 @@
 import cluster, { Worker } from 'node:cluster';
 import { ConfigSchemaType, rootConfigSchema } from '../config/config-schema';
 import http from 'node:http'
-import { WorkerMessageType } from './server-schema';
+import { WorkerMessageSchema, WorkerMessageType } from './server-schema';
 
 interface masterConfig {
     port: number;
@@ -12,18 +12,21 @@ interface masterConfig {
 export async function masterProcess(config: masterConfig) {
     const { workerCount, port } = config;
 
+    const WORKER_POOL:Worker[] = [];
+
     if (cluster.isPrimary) {
         console.log("Mater process is up 🚀")
 
         for (let i = 0; i < workerCount; i++) {
-            cluster.fork({ config: JSON.stringify(config.config) })
+            const worker = cluster.fork({ config: JSON.stringify(config.config) })
+            WORKER_POOL.push(worker);
             console.log(`Master Process: Worker node is up: ${i}`);
         }
 
         // create server
         const server = http.createServer((req, res) => {
-            const index = Math.floor(Math.random() * workerCount);
-            const worker: Worker = Object.values(!cluster.workers)[index];
+            const index = Math.floor(Math.random() * WORKER_POOL.length);
+            const worker = WORKER_POOL[index];
 
             const payload: WorkerMessageType = {
                 requestType: 'http',
@@ -42,8 +45,9 @@ export async function masterProcess(config: masterConfig) {
         console.log("woker node ");
         const config = await rootConfigSchema.parseAsync(JSON.parse(process.env.config as string));
 
-        process.on('message', (message) => {
-            console.log(message)
+        process.on('message', async (message) => {
+            const messageValidated = await WorkerMessageSchema.parseAsync(JSON.parse(message as string))
+            console.log(messageValidated);
         })
     }
 }
